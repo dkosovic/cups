@@ -88,6 +88,12 @@ Patch2003: cups-windows-ipp-1.0.patch
 # https://github.com/OpenPrinting/cups/issues/428
 Patch2004: cups-konica-minolta-submission-interrupted.patch
 
+# Konica Minolta PPD->IPP mappings
+Patch2005: cups-konica-minolta-ppd-to-ipp-mappings.patch
+
+# Brother PPD->IPP BRMediaType mapping
+Patch2006: cups-brother-ppd-to-ipp-mapping.patch
+
 BuildRequires: automake
 # gcc and gcc-c++ is no longer in buildroot by default
 # gcc for most of files
@@ -307,6 +313,8 @@ to CUPS daemon. This solution will substitute printer drivers and raw queues in 
 %patch -P 2002 -p1 -b .pam_auth
 %patch -P 2003 -p1 -b .windows-ipp-1.0
 %patch -P 2004 -p1 -b .submission-interrupted
+%patch -P 2005 -p1 -b .konica-minolta-ppd2ipp
+%patch -P 2006 -p1 -b .brother-ppd2ipp
 
 %if %{lspp}
 # LSPP support.
@@ -788,6 +796,7 @@ rm -f %{cups_serverbin}/backend/smb
 - Show username atempting to auth before PAM calls in debug log
 - disable LSPP
 - disable USB related patches and multifile patch
+- add some PPD->IPP mappings for Konica Minolta and Brother printers
 
 * Wed Jun 07 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1:2.4.4-1
 - fixes CVE-2023-32324

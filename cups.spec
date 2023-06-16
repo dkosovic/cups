@@ -15,7 +15,7 @@ Summary: CUPS printing system
 Name: cups
 Epoch: 1
 Version: 2.4.4
-Release: 1%{?dist}
+Release: 2%{?dist}
 # the CUPS exception text is the same as LLVM exception, so using that name with
 # agreement from legal team
 # https://lists.fedoraproject.org/archives/list/legal@lists.fedoraproject.org/message/A7GFSD6M3GYGSI32L2FC5KB22DUAEQI3/
@@ -42,19 +42,19 @@ Patch3: cups-banners.patch
 # don't export ssl libs to cups-config - can't find the reason.
 Patch4: cups-no-export-ssllibs.patch
 # enables old uri usb:/dev/usb/lp0 - leave it here for users of old printers
-Patch5: cups-direct-usb.patch
+#Patch5: cups-direct-usb.patch
 # when system workload is high, timeout for cups-driverd can be reached -
 # increase the timeout
 Patch6: cups-driverd-timeout.patch
 # usb backend didn't get any notification about out-of-paper because of kernel 
-Patch7: cups-usb-paperout.patch
+#Patch7: cups-usb-paperout.patch
 # uri compatibility with old Fedoras
-Patch8: cups-uri-compat.patch
+#Patch8: cups-uri-compat.patch
 # use IP_FREEBIND, because cupsd cannot bind to not yet existing IP address
 # by default
 Patch9: cups-freebind.patch
 # add support of multifile
-Patch10: cups-ipp-multifile.patch
+#Patch10: cups-ipp-multifile.patch
 # prolongs web ui timeout
 Patch11: cups-web-devices-timeout.patch
 # failover backend for implementing failover functionality
@@ -72,10 +72,21 @@ Patch100: cups-lspp.patch
 #### UPSTREAM PATCHES (starts with 1000) ####
 
 
-##### Patches removed because IMHO they aren't no longer needed
-##### but still I'll leave them in git in case their removal
-##### breaks something. 
+#### Custom EAIT patches (starts with 2000) ####
 
+# Re-open the log if it has been logrotated under us.
+Patch2001: cups-logrotate.patch
+
+# provide debuging info for the username atempting to authenticate with PAM
+Patch2002: cups-pam_auth.patch
+
+# Force Windows IPP 1.0 to use Microsoft IPP Class Driver for printer-make-and-model,
+# also force a username/password prompt when using IPP 1.0 and adding a printer.
+Patch2003: cups-windows-ipp-1.0.patch
+
+# Workaround for Konica Minolta "Reset Modes" status bug
+# https://github.com/OpenPrinting/cups/issues/428
+Patch2004: cups-konica-minolta-submission-interrupted.patch
 
 BuildRequires: automake
 # gcc and gcc-c++ is no longer in buildroot by default
@@ -270,17 +281,17 @@ to CUPS daemon. This solution will substitute printer drivers and raw queues in 
 # Don't export SSLLIBS to cups-config.
 %patch -P 4 -p1 -b .no-export-ssllibs
 # Allow file-based usb device URIs.
-%patch -P 5 -p1 -b .direct-usb
+#patch -P 5 -p1 -b .direct-usb
 # Increase driverd timeout to 70s to accommodate foomatic (bug #744715).
 %patch -P 6 -p1 -b .driverd-timeout
 # Support for errno==ENOSPACE-based USB paper-out reporting.
-%patch -P 7 -p1 -b .usb-paperout
+#patch -P 7 -p1 -b .usb-paperout
 # Allow the usb backend to understand old-style URI formats.
-%patch -P 8 -p1 -b .uri-compat
+#patch -P 8 -p1 -b .uri-compat
 # Use IP_FREEBIND socket option when binding listening sockets (bug #970809).
 %patch -P 9 -p1 -b .freebind
 # Fixes for jobs with multiple files and multiple formats.
-%patch -P 10 -p1 -b .ipp-multifile
+#patch -P 10 -p1 -b .ipp-multifile
 # Increase web interface get-devices timeout to 10s (bug #996664).
 %patch -P 11 -p1 -b .web-devices-timeout
 # Add failover backend (bug #1689209)
@@ -291,16 +302,17 @@ to CUPS daemon. This solution will substitute printer drivers and raw queues in 
 # UPSTREAM PATCHES
 
 
+# EAIT PATCHES
+%patch -P 2001 -p1 -b .logrotate
+%patch -P 2002 -p1 -b .pam_auth
+%patch -P 2003 -p1 -b .windows-ipp-1.0
+%patch -P 2004 -p1 -b .submission-interrupted
+
 %if %{lspp}
 # LSPP support.
 %patch -P 100 -p1 -b .lspp
 %endif
 
-
-# Log to the system journal by default (bug #1078781, bug #1519331).
-sed -i -e 's,^ErrorLog .*$,ErrorLog syslog,' conf/cups-files.conf.in
-sed -i -e 's,^AccessLog .*$,AccessLog syslog,' conf/cups-files.conf.in
-sed -i -e 's,^PageLog .*,PageLog syslog,' conf/cups-files.conf.in
 
 # Let's look at the compilation command lines.
 perl -pi -e "s,^.SILENT:,," Makedefs.in
@@ -333,6 +345,7 @@ export CXXFLAGS="$CXXFLAGS $RPM_OPT_FLAGS -DLDAP_DEPRECATED=1"
   --with-dbusdir=%{_sysconfdir}/dbus-1 \
   --with-dnssd=avahi \
   --with-log-file-perm=0600 \
+  --with-max-log-size=0 \
   --with-ondemand=systemd \
   --with-pkgconfpath=%{_libdir}/pkgconfig \
   --with-rundir=%{_rundir}/cups \
@@ -446,6 +459,16 @@ c /dev/lp2 0660 root lp - 6:2
 c /dev/lp3 0660 root lp - 6:3
 EOF
 
+# /etc/logrotate.d/cups
+mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
+cat > %{buildroot}%{_sysconfdir}/logrotate.d/cups <<EOF
+/var/log/cups/*_log {
+	missingok
+	notifempty
+	sharedscripts
+}
+EOF
+
 find %{buildroot} -type f -o -type l | sed '
 s:.*\('%{_datadir}'/\)\([^/_]\+\)\(.*\.po$\):%lang(\2) \1\2\3:
 /^%lang(C)/d
@@ -453,6 +476,15 @@ s:.*\('%{_datadir}'/\)\([^/_]\+\)\(.*\.po$\):%lang(\2) \1\2\3:
 ' > %{name}.lang
 
 %post
+# remove this after F36 is EOL
+# - previously the file was empty by default, so check whether the directive exists
+#   and if not, add the directive+value
+# - we don't check for directive value in case some users already know they need MD5
+#   Digest authentication, so we won't break their setup with every update
+# - ^\s* prevents matching comments and ignores whitespaces at the beginning
+grep '^\s*DigestOptions' %{_sysconfdir}/cups/client.conf &> /dev/null || echo 'DigestOptions DenyMD5' \
+>> %{_sysconfdir}/cups/client.conf
+
 # remove after CentOS Stream 10 is released
 # Require authentication for accessing /admin location
 # - needed for finding printers via Find New Printers button in Web UI
@@ -677,6 +709,7 @@ rm -f %{cups_serverbin}/backend/smb
 %dir %attr(0700,root,lp) %{_sysconfdir}/cups/ssl
 %config(noreplace) %{_sysconfdir}/dbus-1/system.d/cups.conf
 %config(noreplace) %{_sysconfdir}/pam.d/cups
+%config(noreplace) %{_sysconfdir}/logrotate.d/cups
 %{_tmpfilesdir}/cups.conf
 %{_tmpfilesdir}/cups-lp.conf
 %attr(0644, root, root)%{_unitdir}/%{name}.service
@@ -749,6 +782,13 @@ rm -f %{cups_serverbin}/backend/smb
 %{_mandir}/man7/ippeveps.7.gz
 
 %changelog
+* Fri Jun 16 2023 Douglas Kosovic <doug@uq.edu.au> - 1:2.4.4-2
+- send log output to /var/log/cups/error_log rather than system journal
+- add logrotate support for log output
+- Show username atempting to auth before PAM calls in debug log
+- disable LSPP
+- disable USB related patches and multifile patch
+
 * Wed Jun 07 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1:2.4.4-1
 - fixes CVE-2023-32324
 - 2211834 - cups-2.4.4 is available

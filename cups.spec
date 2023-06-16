@@ -14,8 +14,8 @@
 Summary: CUPS printing system
 Name: cups
 Epoch: 1
-Version: 2.4.4
-Release: 2%{?dist}
+Version: 2.4.5
+Release: 1%{?dist}
 # the CUPS exception text is the same as LLVM exception, so using that name with
 # agreement from legal team
 # https://lists.fedoraproject.org/archives/list/legal@lists.fedoraproject.org/message/A7GFSD6M3GYGSI32L2FC5KB22DUAEQI3/
@@ -790,7 +790,7 @@ rm -f %{cups_serverbin}/backend/smb
 %{_mandir}/man7/ippeveps.7.gz
 
 %changelog
-* Fri Jun 16 2023 Douglas Kosovic <doug@uq.edu.au> - 1:2.4.4-2
+* Fri Jun 16 2023 Douglas Kosovic <doug@uq.edu.au> - 1:2.4.5-1
 - send log output to /var/log/cups/error_log rather than system journal
 - add logrotate support for log output
 - Show username atempting to auth before PAM calls in debug log
